@@ -1,0 +1,1032 @@
+{
+  "name": "Creating Caption",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generate-caption",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -832,
+        -48
+      ],
+      "id": "f97a68db-261c-4855-a108-6c21bfd06971",
+      "name": "Webhook"
+    },
+    {
+      "parameters": {
+        "resource": "video",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "text": "What's is in this video?",
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -272
+      ],
+      "id": "aa1553f9-c560-492f-bfd5-90fc332afa4f",
+      "name": "Analyze video",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_ME",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Get external url').item.json.external_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -128,
+        -160
+      ],
+      "id": "f970990f-cbdd-4a8f-9bcb-bf6b4d444dcd",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scheduled (id, account_id, media_asset_id, caption, state, scheduled_at, updated_at, media_type)\nSELECT gen_random_uuid(), account_id, id, $1, 'CAPTIONED', NOW() AT TIME ZONE 'Africa/Cairo', NOW() AT TIME ZONE 'Africa/Cairo', media_type\nFROM media_assets WHERE id = $2\nON CONFLICT (media_asset_id) DO UPDATE \nSET caption = EXCLUDED.caption, state = 'CAPTIONED', updated_at = NOW() AT TIME ZONE 'Africa/Cairo';",
+        "options": {
+          "queryReplacement": "={{ [ $json.text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1104,
+        -208
+      ],
+      "id": "18ace904-bfc8-4087-8217-2d9252d7475f",
+      "name": "Save caption",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.brand_guidelines, m.external_url\nFROM media_assets m\nJOIN accounts a ON m.account_id = a.id\nWHERE m.id = $1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -272,
+        -176
+      ],
+      "id": "33fef13b-b482-4d2d-9bd0-34ee8440cff4",
+      "name": "Get external url",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled \nSET scheduled_at = $1 \nWHERE media_asset_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.date, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1104,
+        -400
+      ],
+      "id": "a407dd48-3d08-46f5-aa06-18538682302b",
+      "name": "Update schedule",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets \nSET ai_vision_summary = $1\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.content.parts[0].text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        592,
+        -384
+      ],
+      "id": "98986576-1a66-409f-8697-0b7f443e663f",
+      "name": "Insert Vision Summary",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "z-ai/glm-4.5-air:free",
+        "options": {
+          "responseFormat": "text"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        816,
+        -112
+      ],
+      "id": "5a3a7df6-398a-493a-86c3-635e40756014",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create a caption for this video. Here is the scene description:   {{ $('Analyze video').item.json.content.parts[0].text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert Social Media Account Manager for a premium brand. Your goal is to write a minimalist, aesthetic Instagram caption based on the provided video description.  CORE DIRECTIVES: 1. Short & Punchy: The caption should be concise, confident, and ideally one sentence. Do not force a strict word count, but keep it brief and impactful. 2. Subtle Emojis: Include a tasteful amount of emojis (1 or 2 maximum) that perfectly match the aesthetic. Do not overdo it. 3. Authentic & Confident: Do not ask questions, do not ask for comments, and do not use engagement-bait. Let the visual speak for itself. 4. Brand Voice: You must strictly follow these exact tone and style guidelines:  {{ $('Get external url').item.json.brand_guidelines }}  STRICT OUTPUT FORMATTING: - DO NOT give multiple options. - DO NOT include conversational filler (e.g., \"Here is your caption:\"). - OUTPUT ONLY THE FINAL CAPTION TEXT AND NOTHING ELSE."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        784,
+        -288
+      ],
+      "id": "38fc9a39-0e7a-493e-a0a2-f6dd96d0e319",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        144,
+        -32
+      ],
+      "id": "95de5518-d936-49e1-822f-f8e8bcc787d1",
+      "name": "Analyze an image",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_ME",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets SET state = 'ANALYZED' WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Webhook').item.json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        496,
+        -224
+      ],
+      "id": "7e99b642-0d14-4b15-a2e8-feabd373808c",
+      "name": "Update Status",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets SET state = 'ANALYZED' WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Webhook').item.json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        480,
+        0
+      ],
+      "id": "a2096745-afe4-433d-b199-432aa4f1641d",
+      "name": "Update Status2",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scheduled (id, account_id, media_asset_id, caption, state, scheduled_at, updated_at, media_type)\nSELECT gen_random_uuid(), account_id, id, $1, 'CAPTIONED', NOW() AT TIME ZONE 'Africa/Cairo', NOW() AT TIME ZONE 'Africa/Cairo', media_type\nFROM media_assets WHERE id = $2\nON CONFLICT (media_asset_id) DO UPDATE \nSET caption = EXCLUDED.caption, state = 'CAPTIONED', updated_at = NOW() AT TIME ZONE 'Africa/Cairo';",
+        "options": {
+          "queryReplacement": "={{ [ $json.text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1040,
+        224
+      ],
+      "id": "8314831d-6ba4-4d21-9952-026ece827cfe",
+      "name": "Save caption1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled \nSET scheduled_at = $1 \nWHERE media_asset_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.date, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1008,
+        48
+      ],
+      "id": "97def99d-acef-4fa7-9499-a93c4c12f21e",
+      "name": "Update schedule1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "z-ai/glm-4.5-air:free",
+        "options": {
+          "responseFormat": "text"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        672,
+        352
+      ],
+      "id": "94a23c6d-967b-47b1-83bb-6f9c95932dfe",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create a caption for this video. Here is the scene description:  {{ $('Analyze an image').item.json.content.parts[0].text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert Social Media Account Manager for a premium brand. Your goal is to write a minimalist, aesthetic Instagram caption based on the provided video description.  CORE DIRECTIVES: 1. Short & Punchy: The caption should be concise, confident, and ideally one sentence. Do not force a strict word count, but keep it brief and impactful. 2. Subtle Emojis: Include a tasteful amount of emojis (1 or 2 maximum) that perfectly match the aesthetic. Do not overdo it. 3. Authentic & Confident: Do not ask questions, do not ask for comments, and do not use engagement-bait. Let the visual speak for itself. 4. Brand Voice: You must strictly follow these exact tone and style guidelines:  {{ $('Get external url1').item.json.brand_guidelines }}  STRICT OUTPUT FORMATTING: - DO NOT give multiple options. - DO NOT include conversational filler (e.g., \"Here is your caption:\"). - OUTPUT ONLY THE FINAL CAPTION TEXT AND NOTHING ELSE."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        672,
+        176
+      ],
+      "id": "fab7a04d-af7b-4ddc-881f-0bf8d5dc74a0",
+      "name": "Basic LLM Chain1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets \nSET ai_vision_summary = $1\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.content.parts[0].text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        496,
+        176
+      ],
+      "id": "c2520124-e595-4a9d-9e2d-493dcc377a90",
+      "name": "Insert Photo Summary",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.media_type }}",
+                    "rightValue": "REELS",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "cbea09a4-0806-4604-ae4c-e9225927d24d"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "23083f31-167c-4e9c-8d38-2fe5bae55034",
+                    "leftValue": "={{ $json.body.media_type }}",
+                    "rightValue": "IMAGE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "d9ce896b-69e1-4d87-b3b3-18c03262732d",
+                    "leftValue": "={{ $json.body.media_type }}",
+                    "rightValue": "STORY",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals",
+                      "name": "filter.operator.equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.3,
+      "position": [
+        -608,
+        -48
+      ],
+      "id": "df39ff73-fb97-4578-809a-806f0c898851",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.brand_guidelines, m.external_url\nFROM media_assets m\nJOIN accounts a ON m.account_id = a.id\nWHERE m.id = $1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -320,
+        128
+      ],
+      "id": "683501ea-113d-4efc-b4e1-8fc03219f320",
+      "name": "Get external url1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.brand_guidelines, m.external_url\nFROM media_assets m\nJOIN accounts a ON m.account_id = a.id\nWHERE m.id = $1;",
+        "options": {
+          "queryReplacement": "={{ $json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -768,
+        448
+      ],
+      "id": "72c58ac7-8f2d-47bf-ad75-e47a5777bbca",
+      "name": "Get external url2",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Get external url1').item.json.external_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -112,
+        144
+      ],
+      "id": "05de6392-7dd8-4e6c-a9a3-2ef7febba049",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets \nSET ai_vision_summary = $1\nWHERE id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.content.parts[0].text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        224,
+        800
+      ],
+      "id": "ceb0c59f-6b62-4986-93bf-76612231111f",
+      "name": "Insert Photo Summary1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Create a caption for this video. Here is the scene description:  {{ $('Analyze an image1').item.json.content.parts[0].text }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are an expert Social Media Account Manager for a premium brand. Your goal is to write a minimalist, aesthetic Instagram caption based on the provided video description.  CORE DIRECTIVES: 1. Short & Punchy: The caption should be concise, confident, and ideally one sentence. Do not force a strict word count, but keep it brief and impactful. 2. Subtle Emojis: Include a tasteful amount of emojis (1 or 2 maximum) that perfectly match the aesthetic. Do not overdo it. 3. Authentic & Confident: Do not ask questions, do not ask for comments, and do not use engagement-bait. Let the visual speak for itself. 4. Brand Voice: You must strictly follow these exact tone and style guidelines:  {{ $('Get external url2').item.json.brand_guidelines }}  STRICT OUTPUT FORMATTING: - DO NOT give multiple options. - DO NOT include conversational filler (e.g., \"Here is your caption:\"). - OUTPUT ONLY THE FINAL CAPTION TEXT AND NOTHING ELSE."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        464,
+        816
+      ],
+      "id": "4f7a3124-5a7c-4084-9ae6-2f780908af57",
+      "name": "Basic LLM Chain2"
+    },
+    {
+      "parameters": {
+        "model": "z-ai/glm-4.5-air:free",
+        "options": {
+          "responseFormat": "text"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        432,
+        1056
+      ],
+      "id": "b806f327-1a4a-4d8b-a27a-d66b192a862c",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "REPLACE_ME",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled \nSET scheduled_at = $1 \nWHERE media_asset_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.date, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        752,
+        704
+      ],
+      "id": "e6067d69-3ec9-4f2c-a01d-f803b1d0b7b1",
+      "name": "Update schedule2",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO scheduled (id, account_id, media_asset_id, caption, state, scheduled_at, updated_at, media_type)\nSELECT gen_random_uuid(), account_id, id, $1, 'CAPTIONED', NOW() AT TIME ZONE 'Africa/Cairo', NOW() AT TIME ZONE 'Africa/Cairo', media_type\nFROM media_assets WHERE id = $2\nON CONFLICT (media_asset_id) DO UPDATE \nSET caption = EXCLUDED.caption, state = 'CAPTIONED', updated_at = NOW() AT TIME ZONE 'Africa/Cairo';",
+        "options": {
+          "queryReplacement": "={{ [ $json.text, $('Webhook').item.json.body.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        816,
+        992
+      ],
+      "id": "fba8210c-8806-4423-90f1-2c35e920c39a",
+      "name": "Save caption2",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE media_assets SET state = 'ANALYZED' WHERE id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Webhook').item.json.body.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        192,
+        528
+      ],
+      "id": "bfe4e274-60ea-4232-b8a8-68012fc0fcd1",
+      "name": "Update Status3",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "operation": "analyze",
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-2.5-flash",
+          "mode": "list",
+          "cachedResultName": "models/gemini-2.5-flash"
+        },
+        "inputType": "binary",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        608
+      ],
+      "id": "57a03553-d01a-407c-a4fb-ac8d3f50b957",
+      "name": "Analyze an image1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "REPLACE_ME",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Get external url2').item.json.external_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "ngrok-skip-browser-warning",
+              "value": "true"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -544,
+        576
+      ],
+      "id": "fb3e8a41-2de8-4e83-9c3f-800699000d7b",
+      "name": "HTTP Request2"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze video": {
+      "main": [
+        [
+          {
+            "node": "Insert Vision Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Analyze video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get external url": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save caption": {
+      "main": [
+        []
+      ]
+    },
+    "Insert Vision Summary": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Update schedule",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save caption",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image": {
+      "main": [
+        [
+          {
+            "node": "Insert Photo Summary",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Update Status2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain1": {
+      "main": [
+        [
+          {
+            "node": "Update schedule1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save caption1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Photo Summary": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Get external url",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get external url1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get external url2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get external url1": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get external url2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Photo Summary1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain2",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain2": {
+      "main": [
+        [
+          {
+            "node": "Update schedule2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Save caption2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Analyze an image1": {
+      "main": [
+        [
+          {
+            "node": "Update Status3",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Insert Photo Summary1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "Analyze an image1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true
+  }
+}

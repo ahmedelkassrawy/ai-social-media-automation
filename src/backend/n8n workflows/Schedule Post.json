@@ -1,0 +1,448 @@
+{
+  "name": "Schedule Post",
+  "nodes": [
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -384,
+        112
+      ],
+      "id": "f85254b4-40e5-4aad-978a-ccf10ed95142",
+      "name": "Wait"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.ig_business_id }}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "media_type",
+              "value": "REELS"
+            },
+            {
+              "name": "video_url",
+              "value": "={{ $json.external_url }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.page_access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -608,
+        96
+      ],
+      "id": "e985032c-155b-4622-9550-6feee17bbb13",
+      "name": "Meta Upload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Return account info').item.json.ig_business_id }}/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('Meta Upload').item.json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Return account info').item.json.page_access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -208,
+        128
+      ],
+      "id": "2021719f-d962-451e-8ba5-5e983b2f75dd",
+      "name": "Meta Publish"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT s.media_asset_id, s.caption, a.page_access_token, a.ig_business_id, m.external_url, m.media_type\nFROM scheduled s\nJOIN media_assets m ON s.media_asset_id = m.id\nJOIN accounts a ON m.account_id = a.id\nWHERE s.state = 'CAPTIONED'\nAND s.scheduled_at <= NOW() AT TIME ZONE 'Africa/Cairo'\nAND s.caption IS NOT NULL;\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        -1088,
+        128
+      ],
+      "id": "2f76c7d4-916e-4b2c-ad31-7b25583141c9",
+      "name": "Return account info",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled SET state = 'PUBLISHED', status = 'PUBLISHED' WHERE media_asset_id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Return account info').item.json.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        16,
+        160
+      ],
+      "id": "a3ea5c24-1ad3-4170-a5b6-ebd15270ca00",
+      "name": "Update post status",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled\nSET instagram_post_id = $1, updated_at = NOW() AT TIME ZONE 'Africa/Cairo'\nWHERE media_asset_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.id, $('Return account info').item.json.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "b4939ddc-1916-4589-b807-ff012f42f56e",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "17b98c13-3847-41f8-9352-dc162d643987",
+              "leftValue": "={{ $json.media_type }}",
+              "rightValue": "IMAGE",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -928,
+        240
+      ],
+      "id": "e926d69f-1c13-4e5f-8c50-fddfffff2927",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -432,
+        368
+      ],
+      "id": "4e1ff7fc-2246-42c4-87e4-49be3cf28fca",
+      "name": "Wait1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $json.ig_business_id }}/media",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "image_url",
+              "value": "={{ $json.external_url }}"
+            },
+            {
+              "name": "caption",
+              "value": "={{ $json.caption }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $json.page_access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -656,
+        336
+      ],
+      "id": "b24eb90d-f689-448d-80a0-2e9453179242",
+      "name": "Meta Upload1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{ $('Return account info').item.json.ig_business_id }}/media_publish",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "creation_id",
+              "value": "={{ $('Meta Upload1').item.json.id }}"
+            },
+            {
+              "name": "access_token",
+              "value": "={{ $('Return account info').item.json.page_access_token }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -192,
+        448
+      ],
+      "id": "dc483379-7687-4275-9847-ed469c558236",
+      "name": "Meta Publish1"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled SET state = 'PUBLISHED', status = 'PUBLISHED' WHERE media_asset_id = $1;",
+        "options": {
+          "queryReplacement": "={{ $('Return account info').item.json.media_asset_id }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        32,
+        480
+      ],
+      "id": "5fd8933b-fdb3-4785-99b8-6a9490537a74",
+      "name": "Update post status1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE scheduled\nSET instagram_post_id = $1, updated_at = NOW() AT TIME ZONE 'Africa/Cairo'\nWHERE media_asset_id = $2;",
+        "options": {
+          "queryReplacement": "={{ [ $json.id, $('Return account info').item.json.media_asset_id ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        16,
+        320
+      ],
+      "id": "b6afa873-25e4-44fb-9893-fc146d080818",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_ME",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1296,
+        160
+      ],
+      "id": "e34e0307-2fd0-4cd4-884d-58449dc9783d",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Meta Publish",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Upload": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Publish": {
+      "main": [
+        [
+          {
+            "node": "Update post status",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return account info": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Meta Upload1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Meta Upload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait1": {
+      "main": [
+        [
+          {
+            "node": "Meta Publish1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Upload1": {
+      "main": [
+        [
+          {
+            "node": "Wait1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Meta Publish1": {
+      "main": [
+        [
+          {
+            "node": "Update post status1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Return account info",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": true,
+    "timezone": "Africa/Cairo"
+  }
+}

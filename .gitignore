@@ -1,0 +1,8 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+videos/
+ngrok_bin/
+node_modules/
+dist/
